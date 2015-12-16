@@ -438,12 +438,13 @@ class MongodbSource extends DboSource {
  * @access public
  */
 	public function describe($Model) {
-		if(empty($Model->primaryKey)) {
-			$Model->primaryKey = '_id';
-		}
 
 		$schema = array();
         $table = $this->fullTableName($Model);
+
+		if ($schema = Cache::read("{$table}.schema")) {
+			return $schema;
+		}
 
 		if (!empty($Model->mongoSchema) && is_array($Model->mongoSchema)) {
 			$schema = $Model->mongoSchema;
@@ -452,7 +453,9 @@ class MongodbSource extends DboSource {
 			$Model->Behaviors->attach('Mongodb.Schemaless');
 			if (!$Model->data) {
 				if ($this->_db->selectCollection($table)->count()) {
-					return $this->deriveSchemaFromData($Model, $this->_db->selectCollection($table)->findOne());
+					$schema = $this->deriveSchemaFromData($Model, $this->_db->selectCollection($table)->findOne());
+					Cache::write("{$table}.schema", $schema);
+					return $schema;
 				}
 			}
 		}
@@ -936,12 +939,12 @@ class MongodbSource extends DboSource {
 		$return = $this->_defaultSchema;
 
 		if ($data) {
-			$fields = array_keys($data);
-			foreach($fields as $field) {
+			foreach($data as $field => $value) {
 				if (in_array($field, array('created', 'modified', 'updated'))) {
 					$return[$field] = array('type' => 'datetime', 'null' => true);
 				} else {
-					$return[$field] = array('type' => 'string', 'length' => 2000);
+					$type = gettype($value);
+					$return[$field] = array('type' => $type, 'length' => 2000);
 				}
 			}
 		}
@@ -1065,6 +1068,17 @@ class MongodbSource extends DboSource {
 		} elseif (!is_array($conditions)) {
 			$conditions = array($conditions);
 		}
+
+		$schema = $this->describe($Model);
+		foreach ($conditions as $name => $value) {
+			$field = $schema[$name];
+			switch ($field['type']) {
+				case 'integer':
+					$conditions[$name] = (int) $value;
+					break;
+			}
+		}
+
 		$order = (is_array($order)) ? $order : array($order);
 
 		if (is_array($order)) {
@@ -1502,7 +1516,6 @@ class MongodbSource extends DboSource {
  */
 	protected function _convertId(&$mixed, $conditions = false) {
 		if (is_int($mixed) || ctype_digit($mixed)) {
-			$mixed = (int) $mixed;
 			return;
 		}
 		if (is_string($mixed)) {
