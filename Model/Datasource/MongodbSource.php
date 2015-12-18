@@ -442,10 +442,6 @@ class MongodbSource extends DboSource {
 		$schema = array();
         $table = $this->fullTableName($Model);
 
-		if ($schema = Cache::read("{$table}.schema")) {
-			return $schema;
-		}
-
 		if (!empty($Model->mongoSchema) && is_array($Model->mongoSchema)) {
 			$schema = $Model->mongoSchema;
 			return $schema + array($Model->primaryKey => $this->_defaultSchema['_id']);
@@ -454,7 +450,6 @@ class MongodbSource extends DboSource {
 			if (!$Model->data) {
 				if ($this->_db->selectCollection($table)->count()) {
 					$schema = $this->deriveSchemaFromData($Model, $this->_db->selectCollection($table)->findOne());
-					Cache::write("{$table}.schema", $schema);
 					return $schema;
 				}
 			}
