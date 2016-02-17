@@ -1066,8 +1066,11 @@ class MongodbSource extends DboSource {
 
 		$schema = $this->describe($Model);
 		foreach ($conditions as $name => $value) {
-			$field = $schema[$name];
+			$field = @$schema[$name];
 			switch ($field['type']) {
+				case 'boolean':
+					$conditions[$name] = (bool) $value;
+					break;
 				case 'integer':
 					$conditions[$name] = (int) $value;
 					break;
@@ -1514,10 +1517,9 @@ class MongodbSource extends DboSource {
 			return;
 		}
 		if (is_string($mixed)) {
-			if (strlen($mixed) !== 24) {
-				return;
+			if (preg_match('/([A-Za-z0-9]{24})/', $mixed)) {
+				$mixed = new MongoId($mixed);
 			}
-			$mixed = new MongoId($mixed);
 		}
 		if (is_array($mixed)) {
 			foreach($mixed as &$row) {
